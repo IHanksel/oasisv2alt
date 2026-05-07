@@ -31,6 +31,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
+    // Regla de Negocio: Bloquear si tiene préstamos vencidos
+    $todos_prestamos = obtener_detalle_prestamos_estudiante($con, $id_usuario);
+    foreach ($todos_prestamos as $p) {
+        if ($p['estado'] === 'activo') {
+            $dias = (strtotime($p['fecha_devolucion']) - strtotime(date('Y-m-d'))) / (60 * 60 * 24);
+            if ($dias < 0) {
+                header("Location: estudiante.php?seccion=catalogo&error=" . urlencode("Tienes préstamos vencidos. No puedes reservar hasta que el administrador registre la devolución."));
+                exit();
+            }
+        }
+    }
+
     try {
         procesar_transaccion_reserva($con, $id_usuario, $id_libro, $fecha_devolucion);
         header("Location: estudiante.php?seccion=catalogo&msg=" . urlencode("¡Reserva Confirmada! Tu libro te espera."));
@@ -44,4 +56,3 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     header("Location: estudiante.php");
     exit();
 }
-?>

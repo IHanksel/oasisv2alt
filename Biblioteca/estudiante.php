@@ -23,6 +23,19 @@ if ($seccion === 'catalogo') {
 $libros_reservados_ids = obtener_libros_reservados_estudiante($con, $_SESSION['user_id']);
 $tope_alcanzado = count($libros_reservados_ids) >= 2;
 
+// Verificar si tiene algún préstamo retrasado
+$tiene_retraso = false;
+$mis_prestamos_check = obtener_detalle_prestamos_estudiante($con, $_SESSION['user_id']);
+foreach ($mis_prestamos_check as $p) {
+    if ($p['estado'] === 'activo') {
+        $dias = (strtotime($p['fecha_devolucion']) - strtotime(date('Y-m-d'))) / (60 * 60 * 24);
+        if ($dias < 0) {
+            $tiene_retraso = true;
+            break;
+        }
+    }
+}
+
 $mis_prestamos = [];
 if ($seccion === 'mis_libros') {
     $mis_prestamos = obtener_detalle_prestamos_estudiante($con, $_SESSION['user_id']);
@@ -35,7 +48,8 @@ try {
     if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         $user_info = $row;
     }
-} catch (Exception $e) {}
+} catch (Exception $e) {
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -48,8 +62,10 @@ try {
     <style>
         /* Estilos amigables específicos para estudiantes */
         .btn-reservation {
-            background-color: rgba(59, 130, 246, 0.1); /* Fondo translúcido tipo glass */
-            color: #2563eb; /* Azul sofisticado */
+            background-color: rgba(59, 130, 246, 0.1);
+            /* Fondo translúcido tipo glass */
+            color: #2563eb;
+            /* Azul sofisticado */
             border: 1px solid rgba(59, 130, 246, 0.3);
             padding: 0.4rem 1.25rem;
             border-radius: 9999px;
@@ -57,12 +73,14 @@ try {
             font-weight: 600;
             cursor: pointer;
             transition: all 0.25s ease;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
             display: inline-flex;
             align-items: center;
-            gap: 0.35rem; /* Espaciado con el icono */
+            gap: 0.35rem;
+            /* Espaciado con el icono */
         }
-        .btn-reservation:hover { 
+
+        .btn-reservation:hover {
             background-color: #3b82f6;
             color: #ffffff;
             border-color: #3b82f6;
@@ -71,28 +89,28 @@ try {
         }
 
         .student-avatar {
-            width: 60px; 
-            height: 60px; 
-            background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%); 
-            color: white; 
-            border-radius: 50%; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            font-size: 1.8rem; 
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, var(--primary) 0%, #3b82f6 100%);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
             font-weight: bold;
             margin: 0 auto 0.75rem;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         }
 
         .student-badge {
-            display: inline-block; 
-            background: #d1fae5; 
-            color: #065f46; 
-            padding: 0.25rem 0.75rem; 
-            border-radius: 9999px; 
-            font-size: 0.75rem; 
-            font-weight: 700; 
+            display: inline-block;
+            background: #d1fae5;
+            color: #065f46;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
             margin-bottom: 1.25rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -130,135 +148,145 @@ try {
                 <strong style="display: block; color: var(--text-color); font-size: 1.05rem;"><?= htmlspecialchars($user_info['nombre']) ?></strong>
                 <span style="display: block; font-size: 0.85rem; color: var(--text-light); margin-bottom: 0.4rem;"><?= htmlspecialchars($user_info['correo']) ?></span>
                 <span class="student-badge">Estudiante</span>
-                
+
                 <a href="logout.php" class="btn-logout" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 0.75rem; font-weight: 600;">Cerrar Sesión</a>
             </div>
         </aside>
 
         <!-- Contenido Principal -->
         <main class="main-content">
-<?php if ($seccion === 'catalogo'): ?>
-            <header class="top-header">
-                <h1>Catálogo de la Biblioteca</h1>
-                <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
-                    <div class="search-box" style="position: relative;">
-                        <!-- Lupa icon -->
-                        <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;">🔍</span>
-                        <input type="text" id="searchInput" placeholder="Buscar título o libro..." onkeyup="filtrarTabla()"
-                            style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+            <?php if ($seccion === 'catalogo'): ?>
+                <header class="top-header">
+                    <h1>Catálogo de la Biblioteca</h1>
+                    <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
+                        <div class="search-box" style="position: relative;">
+                            <!-- Lupa icon -->
+                            <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;">🔍</span>
+                            <input type="text" id="searchInput" placeholder="Buscar título o libro..." onkeyup="filtrarTabla()"
+                                style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+                        </div>
                     </div>
-                </div>
-            </header>
+                </header>
 
-            <div class="content-body">
-                <!-- Zona de Mensajes y Alertas -->
-                <?php if (isset($_GET['msg'])): ?>
-                    <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; color: #065f46; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
-                        ✅ <?= htmlspecialchars($_GET['msg']) ?>
-                    </div>
-                <?php endif; ?>
-                <?php if (isset($_GET['error'])): ?>
-                    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #991b1b; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
-                        ⚠️ <?= htmlspecialchars($_GET['error']) ?>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if ($tope_alcanzado): ?>
-                    <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid #f59e0b; color: #b45309; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
-                        <span>🛑 Límite de Cupo Alcanzado: No puedes reservar nuevos libros hasta no habilitar tus retornos en 'Mis Libros Activos'.</span>
-                    </div>
-                <?php endif; ?>
+                <div class="content-body">
+                    <!-- Zona de Mensajes y Alertas -->
+                    <?php if (isset($_GET['msg'])): ?>
+                        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10b981; color: #065f46; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                            ✅ <?= htmlspecialchars($_GET['msg']) ?>
+                        </div>
+                    <?php endif; ?>
+                    <?php if (isset($_GET['error'])): ?>
+                        <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #991b1b; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
+                            ⚠️ <?= htmlspecialchars($_GET['error']) ?>
+                        </div>
+                    <?php endif; ?>
 
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Título</th>
-                                <th>Autor/es</th>
-                                <th>Materia</th>
-                                <th>Estado</th>
-                                <th>Movimientos</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (!empty($libros)): ?>
-                                <?php foreach ($libros as $libro): ?>
-                                    <?php 
+                    <?php if ($tope_alcanzado): ?>
+                        <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid #f59e0b; color: #b45309; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+                            <span>🛑 Límite de Cupo Alcanzado: No puedes reservar nuevos libros hasta no habilitar tus retornos en 'Mis Libros Activos'.</span>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if ($tiene_retraso): ?>
+                        <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; color: #991b1b; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; font-weight: 600;">
+                            ⚠️ Tienes préstamos vencidos. No puedes reservar nuevos libros hasta que el administrador registre la devolución.
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Título</th>
+                                    <th>Autor/es</th>
+                                    <th>Materia</th>
+                                    <th>Estado</th>
+                                    <th>Movimientos</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($libros)): ?>
+                                    <?php foreach ($libros as $libro): ?>
+                                        <?php
                                         $hay_stock = ($libro['cantidad'] > 0);
                                         $estado_class = $hay_stock ? 'status-active' : 'status-inactive';
                                         $estado_texto = $hay_stock ? 'Disponible' : 'Agotado';
                                         $ya_reservado = in_array($libro['id'], $libros_reservados_ids);
-                                    ?>
-                                    <tr>
-                                        <td><span style="color: var(--text-light); font-size: 0.85rem;">#<?= htmlspecialchars($libro['id']) ?></span></td>
-                                        <td><strong><?= htmlspecialchars($libro['titulo']) ?></strong></td>
-                                        <td><?= htmlspecialchars($libro['nombre_autor'] ?? 'Desconocido') ?></td>
-                                        <td><span class="category-tag"><?= htmlspecialchars($libro['nombre_materia'] ?? 'General') ?></span></td>
-                                        <td>
-                                            <span class="status-badge <?= $estado_class ?>">
-                                                <?= $estado_texto ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <!-- Botones de Movimientos Inteligentes -->
-                                            <?php if ($ya_reservado): ?>
-                                                <span style="display: inline-block; padding: 0.35rem 0.85rem; background: rgba(55, 65, 81, 0.08); color: #4b5563; border: 1px solid rgba(55, 65, 81, 0.2); border-radius: 9999px; font-size: 0.8rem; font-weight: 700;">
-                                                    📌 Reservado por ti
+                                        ?>
+                                        <tr>
+                                            <td><span style="color: var(--text-light); font-size: 0.85rem;">#<?= htmlspecialchars($libro['id']) ?></span></td>
+                                            <td><strong><?= htmlspecialchars($libro['titulo']) ?></strong></td>
+                                            <td><?= htmlspecialchars($libro['nombre_autor'] ?? 'Desconocido') ?></td>
+                                            <td><span class="category-tag"><?= htmlspecialchars($libro['nombre_materia'] ?? 'General') ?></span></td>
+                                            <td>
+                                                <span class="status-badge <?= $estado_class ?>">
+                                                    <?= $estado_texto ?>
                                                 </span>
-                                            <?php elseif ($tope_alcanzado): ?>
-                                                <button class="btn-reservation" style="opacity: 0.5; background: #9ca3af; border-color: #9ca3af; color: white; cursor: not-allowed;" disabled>
-                                                    ⛔ Cupo Lleno
-                                                </button>
-                                            <?php elseif ($hay_stock): ?>
-                                                <button class="btn-reservation" onclick="abrirModalReserva(<?= $libro['id'] ?>, '<?= htmlspecialchars($libro['titulo'], ENT_QUOTES) ?>')">
-                                                    📅 Reservar
-                                                </button>
-                                            <?php else: ?>
-                                                <span style="color: #ef4444; font-size: 0.85rem; font-weight: 600; padding: 0.4rem 1rem; background: rgba(239,68,68,0.1); border-radius: 9999px;">Agotado</span>
-                                            <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <!-- Botones de Movimientos Inteligentes -->
+                                                <?php if ($ya_reservado): ?>
+                                                    <span style="display: inline-block; padding: 0.35rem 0.85rem; background: rgba(55, 65, 81, 0.08); color: #4b5563; border: 1px solid rgba(55, 65, 81, 0.2); border-radius: 9999px; font-size: 0.8rem; font-weight: 700;">
+                                                        📌 Reservado por ti
+                                                    </span>
+                                                <?php elseif ($tope_alcanzado || $tiene_retraso): ?>
+                                                    <button class="btn-reservation" style="opacity: 0.5; background: #9ca3af; border-color: #9ca3af; color: white; cursor: not-allowed;" disabled>
+                                                        <?php if ($tiene_retraso): ?>
+                                                            ⚠️ Retrasado
+                                                        <?php else: ?>
+                                                            ⛔ Cupo Lleno
+                                                        <?php endif; ?>
+                                                    </button>
+                                                <?php elseif ($hay_stock): ?>
+                                                    <button class="btn-reservation" onclick="abrirModalReserva(<?= $libro['id'] ?>, '<?= htmlspecialchars($libro['titulo'], ENT_QUOTES) ?>')">
+                                                        📅 Reservar
+                                                    </button>
+                                                <?php else: ?>
+                                                    <span style="color: #ef4444; font-size: 0.85rem; font-weight: 600; padding: 0.4rem 1rem; background: rgba(239,68,68,0.1); border-radius: 9999px;">Agotado</span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr>
+                                        <td colspan="6" style="text-align: center; color: var(--text-light); padding: 3rem;">
+                                            📚 El catálogo actualmente está vacío.<br>
+                                            <?php if (isset($error_db)) echo "<span style='color:red;'>$error_db</span>"; ?>
                                         </td>
                                     </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="6" style="text-align: center; color: var(--text-light); padding: 3rem;">
-                                        📚 El catálogo actualmente está vacío.<br>
-                                        <?php if (isset($error_db)) echo "<span style='color:red;'>$error_db</span>"; ?>
-                                    </td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-<?php elseif ($seccion === 'mis_libros'): ?>
-            <header class="top-header">
-                <h1>Mis Libros Activos</h1>
-                <div class="header-actions">
-                    <span style="font-size: 0.95rem; color: var(--text-light);">Aquí verás tus préstamos actuales y pasados.</span>
-                </div>
-            </header>
-
-            <div class="content-body" style="overflow-y: auto;">
-                <?php if (empty($mis_prestamos)): ?>
-                    <div style="text-align: center; color: var(--text-light); padding: 5rem 0;">
-                        <span style="font-size: 4rem; display: block; margin-bottom: 1rem;">📭</span>
-                        <h3 style="color: var(--text-color); font-size: 1.25rem;">Aún no tienes ningún libro en tu poder</h3>
-                        <p>Visita el catálogo para explorar nuestra colección.</p>
-                        <a href="estudiante.php?seccion=catalogo" class="btn-primary" style="display: inline-block; text-decoration: none; border-radius: 9999px; padding: 0.5rem 1.5rem; margin-top: 1rem; width: auto;">Ir al Catálogo</a>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
                     </div>
-                <?php else: ?>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem;">
-                        <?php foreach($mis_prestamos as $prestamo): ?>
-                            <?php 
+                </div>
+            <?php elseif ($seccion === 'mis_libros'): ?>
+                <header class="top-header">
+                    <h1>Mis Libros Activos</h1>
+                    <div class="header-actions">
+                        <span style="font-size: 0.95rem; color: var(--text-light);">Aquí verás tus préstamos actuales y pasados.</span>
+                    </div>
+                </header>
+
+                <div class="content-body" style="overflow-y: auto;">
+                    <?php if (empty($mis_prestamos)): ?>
+                        <div style="text-align: center; color: var(--text-light); padding: 5rem 0;">
+                            <span style="font-size: 4rem; display: block; margin-bottom: 1rem;">📭</span>
+                            <h3 style="color: var(--text-color); font-size: 1.25rem;">Aún no tienes ningún libro en tu poder</h3>
+                            <p>Visita el catálogo para explorar nuestra colección.</p>
+                            <a href="estudiante.php?seccion=catalogo" class="btn-primary" style="display: inline-block; text-decoration: none; border-radius: 9999px; padding: 0.5rem 1.5rem; margin-top: 1rem; width: auto;">Ir al Catálogo</a>
+                        </div>
+                    <?php else: ?>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem;">
+                            <?php foreach ($mis_prestamos as $prestamo): ?>
+                                <?php
                                 $es_activo = $prestamo['estado'] === 'activo';
                                 $es_retraso = $prestamo['estado'] === 'retrasado';
-                                
+
                                 // Color de tarjeta según estado
                                 $card_bg = $es_activo ? 'background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(240,249,255,0.8)); border: 1px solid rgba(59,130,246,0.3);' : 'background: rgba(255,255,255,0.6); opacity: 0.8;';
                                 if ($es_retraso) $card_bg = 'background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(254,226,226,0.8)); border: 1px solid rgba(239,68,68,0.4);';
-                                
+
                                 // Calcular días restantes
                                 $dias_restantes = (strtotime($prestamo['fecha_devolucion']) - strtotime(date('Y-m-d'))) / (60 * 60 * 24);
                                 $texto_tiempo = "";
@@ -275,50 +303,50 @@ try {
                                         $color_tiempo = "color: #dc2626; font-weight: 800;"; // Rojo
                                     }
                                 }
-                            ?>
-                            <div style="border-radius: 1rem; padding: 1.5rem; <?= $card_bg ?> box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); position: relative; overflow: hidden; display: flex; flex-direction: column;">
-                                <?php if ($es_activo): ?>
-                                    <div style="position: absolute; top: 0; right: 0; background: var(--primary); color: white; border-bottom-left-radius: 1rem; padding: 0.3rem 1rem; font-size: 0.75rem; font-weight: bold; box-shadow: -2px 2px 5px rgba(0,0,0,0.1);">
-                                        ACTIVO
-                                    </div>
-                                <?php else: ?>
-                                    <div style="position: absolute; top: 0; right: 0; background: #9ca3af; color: white; border-bottom-left-radius: 1rem; padding: 0.3rem 1rem; font-size: 0.75rem; font-weight: bold;">
-                                        DEVUELTO
-                                    </div>
-                                <?php endif; ?>
-                                
-                                <span style="font-size: 0.8rem; color: var(--text-light); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; margin-bottom: 0.25rem;">
-                                    <?= htmlspecialchars($prestamo['nombre_materia'] ?? 'Libro') ?>
-                                </span>
-                                <h3 style="color: var(--text-color); font-size: 1.15rem; font-weight: 800; margin-bottom: 0.25rem; line-height: 1.3;">
-                                    <?= htmlspecialchars($prestamo['titulo']) ?>
-                                </h3>
-                                <span style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 1.5rem;">
-                                    por <?= htmlspecialchars($prestamo['nombre_autor'] ?? 'Desconocido') ?>
-                                </span>
-                                
-                                <div style="margin-top: auto; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 1rem; display: flex; flex-direction: column; gap: 0.25rem;">
-                                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
-                                        <span style="color: var(--text-light);">Adquirido:</span>
-                                        <strong><?= date('d M, Y', strtotime($prestamo['fecha_prestamo'])) ?></strong>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
-                                        <span style="color: var(--text-light);">Límite:</span>
-                                        <strong><?= date('d M, Y', strtotime($prestamo['fecha_devolucion'])) ?></strong>
-                                    </div>
-                                    
+                                ?>
+                                <div style="border-radius: 1rem; padding: 1.5rem; <?= $card_bg ?> box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); position: relative; overflow: hidden; display: flex; flex-direction: column;">
                                     <?php if ($es_activo): ?>
-                                    <div style="margin-top: 0.5rem; text-align: center; padding: 0.5rem; background: rgba(255,255,255,0.7); border-radius: 0.5rem; <?= $color_tiempo ?> font-size: 0.85rem;">
-                                        <?= $texto_tiempo ?>
-                                    </div>
+                                        <div style="position: absolute; top: 0; right: 0; background: var(--primary); color: white; border-bottom-left-radius: 1rem; padding: 0.3rem 1rem; font-size: 0.75rem; font-weight: bold; box-shadow: -2px 2px 5px rgba(0,0,0,0.1);">
+                                            ACTIVO
+                                        </div>
+                                    <?php else: ?>
+                                        <div style="position: absolute; top: 0; right: 0; background: #9ca3af; color: white; border-bottom-left-radius: 1rem; padding: 0.3rem 1rem; font-size: 0.75rem; font-weight: bold;">
+                                            DEVUELTO
+                                        </div>
                                     <?php endif; ?>
+
+                                    <span style="font-size: 0.8rem; color: var(--text-light); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; margin-bottom: 0.25rem;">
+                                        <?= htmlspecialchars($prestamo['nombre_materia'] ?? 'Libro') ?>
+                                    </span>
+                                    <h3 style="color: var(--text-color); font-size: 1.15rem; font-weight: 800; margin-bottom: 0.25rem; line-height: 1.3;">
+                                        <?= htmlspecialchars($prestamo['titulo']) ?>
+                                    </h3>
+                                    <span style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 1.5rem;">
+                                        por <?= htmlspecialchars($prestamo['nombre_autor'] ?? 'Desconocido') ?>
+                                    </span>
+
+                                    <div style="margin-top: auto; border-top: 1px solid rgba(0,0,0,0.05); padding-top: 1rem; display: flex; flex-direction: column; gap: 0.25rem;">
+                                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
+                                            <span style="color: var(--text-light);">Adquirido:</span>
+                                            <strong><?= date('d M, Y', strtotime($prestamo['fecha_prestamo'])) ?></strong>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem;">
+                                            <span style="color: var(--text-light);">Límite:</span>
+                                            <strong><?= date('d M, Y', strtotime($prestamo['fecha_devolucion'])) ?></strong>
+                                        </div>
+
+                                        <?php if ($es_activo): ?>
+                                            <div style="margin-top: 0.5rem; text-align: center; padding: 0.5rem; background: rgba(255,255,255,0.7); border-radius: 0.5rem; <?= $color_tiempo ?> font-size: 0.85rem;">
+                                                <?= $texto_tiempo ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </div>
-<?php endif; ?>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </main>
     </div>
 
@@ -333,13 +361,13 @@ try {
                 <div class="modal-body">
                     <p style="color: var(--text-light); margin-bottom: 1rem; line-height: 1.5;">Estás a punto de agendar la reserva del siguiente título:</p>
                     <p style="font-weight: 700; color: var(--text-color); font-size: 1.1rem; margin-bottom: 1.5rem;" id="txt_titulo_libro"></p>
-                    
+
                     <input type="hidden" name="id_libro" id="reserva_id_libro" value="">
-                    
+
                     <div class="form-group">
                         <label for="fecha_devolucion" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-color);">Fecha estimada de devolución:</label>
-                        <input type="date" name="fecha_devolucion" id="fecha_devolucion" required 
-                            min="<?= date('Y-m-d', strtotime('+1 day')) ?>" 
+                        <input type="date" name="fecha_devolucion" id="fecha_devolucion" required
+                            min="<?= date('Y-m-d', strtotime('+1 day')) ?>"
                             style="width: 100%; padding: 0.75rem; border-radius: 0.5rem; border: 1px solid rgba(0,0,0,0.1); background: #f9fafb; outline: none;">
                         <small style="color: var(--text-light); display: block; margin-top: 0.5rem;">Debes elegir como mínimo el día de mañana.</small>
                     </div>
@@ -362,7 +390,7 @@ try {
 
             for (let i = 0; i < tr.length; i++) {
                 if (tr[i].getElementsByTagName("td").length === 1) continue;
-                
+
                 // Buscar por Título  (columna index=1)
                 let tdTitulo = tr[i].getElementsByTagName("td")[1];
                 if (tdTitulo) {
@@ -383,10 +411,11 @@ try {
             document.getElementById('txt_titulo_libro').textContent = titulo;
             modal.classList.add('active');
         }
-        
+
         function cerrarModalReserva() {
             document.getElementById('modal-reserva').classList.remove('active');
         }
     </script>
 </body>
+
 </html>
