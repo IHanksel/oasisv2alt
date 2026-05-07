@@ -11,9 +11,11 @@ if (!isset($_SESSION['user_id']) || $_SESSION['rol'] !== 'estudiante') {
 $seccion = $_GET['seccion'] ?? 'catalogo';
 
 $libros = [];
+$materias_filtro = [];
 if ($seccion === 'catalogo') {
     try {
         $libros = obtener_inventario_libros($con);
+        $materias_filtro = obtener_materias($con); // Para el dropdown de filtro
     } catch (Exception $e) {
         $error_db = $e->getMessage();
     }
@@ -165,6 +167,15 @@ try {
                             <input type="text" id="searchInput" placeholder="Buscar título o libro..." onkeyup="filtrarTabla()"
                                 style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
                         </div>
+                        <select id="filtroMateria" onchange="filtrarTabla()"
+                            style="padding: 0.65rem 1rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); color: var(--text-color); font-size: 0.95rem; outline: none; cursor: pointer;">
+                            <option value="">Todas las materias</option>
+                            <?php foreach ($materias_filtro as $mat): ?>
+                                <option value="<?= htmlspecialchars($mat['nombre']) ?>">
+                                    <?= htmlspecialchars($mat['nombre']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
                 </header>
 
@@ -395,25 +406,21 @@ try {
     <script>
         // Búsqueda instantánea en cliente
         function filtrarTabla() {
-            let input = document.getElementById("searchInput");
-            let filter = input.value.toLowerCase();
-            let table = document.querySelector(".data-table tbody");
-            let tr = table.getElementsByTagName("tr");
+            let inputTexto = document.getElementById("searchInput").value.toLowerCase();
+            let inputMateria = document.getElementById("filtroMateria").value.toLowerCase();
+            let tr = document.querySelectorAll(".data-table tbody tr");
 
-            for (let i = 0; i < tr.length; i++) {
-                if (tr[i].getElementsByTagName("td").length === 1) continue;
+            tr.forEach(function(fila) {
+                if (fila.getElementsByTagName("td").length === 1) return;
 
-                // Buscar por Título  (columna index=1)
-                let tdTitulo = tr[i].getElementsByTagName("td")[1];
-                if (tdTitulo) {
-                    let txtValue = tdTitulo.textContent || tdTitulo.innerText;
-                    if (txtValue.toLowerCase().indexOf(filter) > -1) {
-                        tr[i].style.display = "";
-                    } else {
-                        tr[i].style.display = "none";
-                    }
-                }
-            }
+                let titulo = fila.getElementsByTagName("td")[1]?.textContent.toLowerCase() ?? '';
+                let materia = fila.getElementsByTagName("td")[3]?.textContent.toLowerCase() ?? '';
+
+                let coincideTitulo = titulo.includes(inputTexto);
+                let coincideMateria = inputMateria === '' || materia.includes(inputMateria);
+
+                fila.style.display = (coincideTitulo && coincideMateria) ? '' : 'none';
+            });
         }
 
         // Control del Modal de Reservas
