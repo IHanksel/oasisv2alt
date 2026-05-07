@@ -311,9 +311,6 @@ try {
                                     <div style="margin-top: 0.5rem; text-align: center; padding: 0.5rem; background: rgba(255,255,255,0.7); border-radius: 0.5rem; <?= $color_tiempo ?> font-size: 0.85rem;">
                                         <?= $texto_tiempo ?>
                                     </div>
-                                    <button onclick="abrirModalDevolucion(<?= $prestamo['id_prestamo'] ?>, '<?= htmlspecialchars($prestamo['titulo'], ENT_QUOTES) ?>')" style="margin-top: 0.75rem; width: 100%; padding: 0.6rem; background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; border-radius: 0.5rem; font-weight: 600; cursor: pointer; transition: all 0.25s ease;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fef2f2'">
-                                        📤 Entregar Ahora
-                                    </button>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -355,32 +352,6 @@ try {
         </div>
     </div>
 
-    <!-- Modal Transaccional de Devolución Anticipada -->
-    <div id="modal-devolucion" class="modal-overlay">
-        <div class="modal-content" style="max-width: 450px;">
-            <div class="modal-header">
-                <h2 style="color: #ef4444;">Entregar Libro</h2>
-                <button type="button" class="btn-close" onclick="cerrarModalDevolucion()">×</button>
-            </div>
-            <form action="procesar_devolucion.php" method="POST">
-                <div class="modal-body">
-                    <p style="color: var(--text-light); margin-bottom: 1rem; line-height: 1.5;">¿Estás seguro que deseas realizar la entrega del ejemplar?</p>
-                    <p style="font-weight: 700; color: var(--text-color); font-size: 1.1rem; margin-bottom: 0.5rem;" id="txt_titulo_devolver"></p>
-                    
-                    <input type="hidden" name="id_prestamo" id="devolucion_id_prestamo" value="">
-                    
-                    <div style="background: rgba(245, 158, 11, 0.1); border-left: 3px solid #f59e0b; padding: 0.75rem; color: #b45309; font-size: 0.85rem; margin-top: 1rem;">
-                        Al continuar se desvinculará este libro de tu historial activo y recuperarás tu cupo en el catálogo.
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn-secondary" onclick="cerrarModalDevolucion()">Cancelar</button>
-                    <button type="submit" class="btn-primary" style="background: #ef4444; border-color: #ef4444;">Hacer Entrega Oficial</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <script>
         // Búsqueda instantánea en cliente
         function filtrarTabla() {
@@ -415,17 +386,6 @@ try {
         
         function cerrarModalReserva() {
             document.getElementById('modal-reserva').classList.remove('active');
-        }
-        // Control del Modal de Devolución
-        function abrirModalDevolucion(idPrestamo, titulo) {
-            const modal = document.getElementById('modal-devolucion');
-            document.getElementById('devolucion_id_prestamo').value = idPrestamo;
-            document.getElementById('txt_titulo_devolver').textContent = titulo;
-            modal.classList.add('active');
-        }
-        
-        function cerrarModalDevolucion() {
-            document.getElementById('modal-devolucion').classList.remove('active');
         }
     </script>
 </body>
