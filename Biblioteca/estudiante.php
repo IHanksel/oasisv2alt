@@ -209,16 +209,28 @@ try {
                                 <?php if (!empty($libros)): ?>
                                     <?php foreach ($libros as $libro): ?>
                                         <?php
-                                        $hay_stock = ($libro['cantidad'] > 0);
-                                        $estado_class = $hay_stock ? 'status-active' : 'status-inactive';
-                                        $estado_texto = $hay_stock ? 'Disponible' : 'Agotado';
+                                        $cantidad = (int) $libro['cantidad'];
+                                        $min_stock = (int) ($libro['stock_minimo'] ?? 0);
+                                        if ($cantidad <= 0) {
+                                            $estado_class = 'status-inactive';
+                                            $estado_texto = 'Agotado';
+                                            $hay_stock = false;
+                                        } elseif ($cantidad <= $min_stock) {
+                                            $estado_class = 'status-warning';
+                                            $estado_texto = 'Poco Stock';
+                                            $hay_stock = true;
+                                        } else {
+                                            $estado_class = 'status-active';
+                                            $estado_texto = 'Disponible';
+                                            $hay_stock = true;
+                                        }
                                         $ya_reservado = in_array($libro['id'], $libros_reservados_ids);
                                         ?>
                                         <tr>
                                             <td><span style="color: var(--text-light); font-size: 0.85rem;">#<?= htmlspecialchars($libro['id']) ?></span></td>
                                             <td><strong><?= htmlspecialchars($libro['titulo']) ?></strong></td>
-                                            <td><?= htmlspecialchars($libro['nombre_autor'] ?? 'Desconocido') ?></td>
-                                            <td><span class="category-tag"><?= htmlspecialchars($libro['nombre_materia'] ?? 'General') ?></span></td>
+                                            <td><?= htmlspecialchars($libro['autor_nombre'] ?? 'Desconocido') ?></td>
+                                            <td><span class="category-tag"><?= htmlspecialchars($libro['categoria_nombre'] ?? 'General') ?></span></td>
                                             <td>
                                                 <span class="status-badge <?= $estado_class ?>">
                                                     <?= $estado_texto ?>
