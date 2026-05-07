@@ -19,6 +19,9 @@ $autores = [];
 $materias = [];
 $editoriales = [];
 $usuarios = [];
+$prestamos = [];
+$total_activos = 0;
+$total_atrasados = 0;
 
 if ($seccion === 'inventario') {
     try {
@@ -32,6 +35,36 @@ if ($seccion === 'inventario') {
 } elseif ($seccion === 'usuarios') {
     try {
         $usuarios = obtener_todos_usuarios($con);
+    } catch (Exception $e) {
+        $error_db = $e->getMessage();
+    }
+} elseif ($seccion === 'prestamos') {
+    try {
+        $stmt = $con->query("
+            SELECT
+                p.id,
+                p.fecha_prestamo,
+                p.fecha_devolucion,
+                p.estado,
+                l.titulo,
+                e.nombre as nombre_estudiante
+            FROM prestamos p
+            JOIN libros l ON p.id_libro = l.id
+            JOIN estudiantes e ON p.id_estudiante = e.id
+            ORDER BY
+                CASE WHEN p.estado = 'activo' THEN 1 ELSE 2 END,
+                p.fecha_devolucion ASC
+        ");
+        $prestamos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Calcular resumen
+        foreach ($prestamos as $p) {
+            if ($p['estado'] === 'activo') {
+                $dias = (strtotime($p['fecha_devolucion']) - strtotime(date('Y-m-d'))) / 86400;
+                if ($dias < 0) $total_atrasados++;
+                else $total_activos++;
+            }
+        }
     } catch (Exception $e) {
         $error_db = $e->getMessage();
     }
@@ -64,13 +97,14 @@ if ($seccion === 'inventario') {
                 </a>
 
                 <!-- Opción de Usuarios -->
-                <a href="admin.php?seccion=usuarios" 
+                <a href="admin.php?seccion=usuarios"
                     class="nav-item <?= $seccion === 'usuarios' ? 'active' : '' ?>">
                     <span class="icon">👥</span> Usuarios
                 </a>
 
                 <!-- Opciones futuras simuladas -->
-                <a href="#" class="nav-item" style="opacity: 0.5; cursor: not-allowed;" title="Próximamente">
+                <a href="admin.php?seccion=prestamos"
+                    class="nav-item <?= $seccion === 'prestamos' ? 'active' : '' ?>">
                     <span class="icon">🔄</span> Préstamos
                 </a>
                 <a href="#" class="nav-item" style="opacity: 0.5; cursor: not-allowed;" title="Próximamente">
@@ -90,146 +124,237 @@ if ($seccion === 'inventario') {
 
         <!-- Contenido Principal -->
         <main class="main-content">
-<?php if ($seccion === 'inventario'): ?>
-            <header class="top-header">
-                <h1>Inventario de Libros</h1>
-                <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
-                    <div class="search-box" style="position: relative;">
-                        <span
-                            style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;"></span>
-                        <input type="text" id="searchInput" placeholder="Buscar por titulo..." onkeyup="filtrarTabla()"
-                            style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+            <?php if ($seccion === 'inventario'): ?>
+                <header class="top-header">
+                    <h1>Inventario de Libros</h1>
+                    <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
+                        <div class="search-box" style="position: relative;">
+                            <span
+                                style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;"></span>
+                            <input type="text" id="searchInput" placeholder="Buscar por titulo..." onkeyup="filtrarTabla()"
+                                style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+                        </div>
+                        <button class="btn-primary" onclick="abrirModalCrear()"
+                            style="width: auto; margin: 0; padding: 0.6rem 1.25rem;">+ Nuevo Libro</button>
                     </div>
-                    <button class="btn-primary" onclick="abrirModalCrear()"
-                        style="width: auto; margin: 0; padding: 0.6rem 1.25rem;">+ Nuevo Libro</button>
-                </div>
-            </header>
+                </header>
 
-            <div class="content-body">
-                <!-- Tabla del inventario (Con datos de prueba listos para ser cambiados por BDD) -->
-                <div class="table-container">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Título</th>
-                                <th>Autor/a</th>
-                                <th>Categoría</th>
-                                <th>Stock</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (!empty($libros)): ?>
-                                <?php foreach ($libros as $libro): ?>
-                                    <?php
-                                    $stock = (int) $libro['cantidad'];
-                                    $min_stock = (int) $libro['stock_minimo'];
+                <div class="content-body">
+                    <!-- Tabla del inventario (Con datos de prueba listos para ser cambiados por BDD) -->
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Título</th>
+                                    <th>Autor/a</th>
+                                    <th>Categoría</th>
+                                    <th>Stock</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($libros)): ?>
+                                    <?php foreach ($libros as $libro): ?>
+                                        <?php
+                                        $stock = (int) $libro['cantidad'];
+                                        $min_stock = (int) $libro['stock_minimo'];
 
-                                    if ($stock <= 0) {
-                                        $estado_clase = "background: rgba(254, 226, 226, 0.8); color: #991b1b; border: 1px solid #fecaca;";
-                                        $estado_texto = "Agotado";
-                                    } elseif ($stock <= $min_stock) {
-                                        $estado_clase = "background-color: rgba(254, 243, 199, 0.8); color: #92400e; border: 1px solid #f59e0b;";
-                                        $estado_texto = "Poco Stock";
-                                    } else {
-                                        $estado_clase = "background-color: rgba(209, 250, 229, 0.8); color: #065f46; border: 1px solid #10b981;";
-                                        $estado_texto = "Disponible";
-                                    }
-                                    ?>
+                                        if ($stock <= 0) {
+                                            $estado_clase = "background: rgba(254, 226, 226, 0.8); color: #991b1b; border: 1px solid #fecaca;";
+                                            $estado_texto = "Agotado";
+                                        } elseif ($stock <= $min_stock) {
+                                            $estado_clase = "background-color: rgba(254, 243, 199, 0.8); color: #92400e; border: 1px solid #f59e0b;";
+                                            $estado_texto = "Poco Stock";
+                                        } else {
+                                            $estado_clase = "background-color: rgba(209, 250, 229, 0.8); color: #065f46; border: 1px solid #10b981;";
+                                            $estado_texto = "Disponible";
+                                        }
+                                        ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($libro['id']) ?></td>
+                                            <td><?= htmlspecialchars($libro['titulo']) ?></td>
+                                            <td><?= htmlspecialchars($libro['autor_nombre'] ?? 'Sin autor') ?></td>
+                                            <td><?= htmlspecialchars($libro['categoria_nombre'] ?? 'Sin categoría') ?></td>
+                                            <td><?= htmlspecialchars($libro['cantidad']) ?></td>
+                                            <td><span class="status-badge" style="<?= $estado_clase ?>"><?= $estado_texto ?></span>
+                                            </td>
+                                            <td>
+                                                <button class="btn-icon" title="Editar"
+                                                    onclick='abrirModalEditar(<?= htmlspecialchars(json_encode($libro), ENT_QUOTES, "UTF-8") ?>)'>✏️</button>
+                                                <button class="btn-icon" title="Eliminar"
+                                                    onclick='abrirModalEliminar(<?= $libro['id'] ?>, <?= htmlspecialchars(json_encode($libro['titulo']), ENT_QUOTES, "UTF-8") ?>)'>🗑️</button>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
                                     <tr>
-                                        <td><?= htmlspecialchars($libro['id']) ?></td>
-                                        <td><?= htmlspecialchars($libro['titulo']) ?></td>
-                                        <td><?= htmlspecialchars($libro['autor_nombre'] ?? 'Sin autor') ?></td>
-                                        <td><?= htmlspecialchars($libro['categoria_nombre'] ?? 'Sin categoría') ?></td>
-                                        <td><?= htmlspecialchars($libro['cantidad']) ?></td>
-                                        <td><span class="status-badge" style="<?= $estado_clase ?>"><?= $estado_texto ?></span>
-                                        </td>
-                                        <td>
-                                            <button class="btn-icon" title="Editar"
-                                                onclick='abrirModalEditar(<?= htmlspecialchars(json_encode($libro), ENT_QUOTES, "UTF-8") ?>)'>✏️</button>
-                                            <button class="btn-icon" title="Eliminar"
-                                                onclick='abrirModalEliminar(<?= $libro['id'] ?>, <?= htmlspecialchars(json_encode($libro['titulo']), ENT_QUOTES, "UTF-8") ?>)'>🗑️</button>
+                                        <td colspan="7" style="text-align: center; color: var(--text-light); padding: 3rem;">
+                                            📦 No hay libros registrados en la base de datos.<br>
+                                            <?php if (isset($error_db))
+                                                echo "<span style='color:red;'>$error_db</span>"; ?>
                                         </td>
                                     </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="7" style="text-align: center; color: var(--text-light); padding: 3rem;">
-                                        📦 No hay libros registrados en la base de datos.<br>
-                                        <?php if (isset($error_db))
-                                            echo "<span style='color:red;'>$error_db</span>"; ?>
-                                    </td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-<?php elseif ($seccion === 'usuarios'): ?>
-            <header class="top-header">
-                <h1>Panel de Usuarios</h1>
-                <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
-                    <div class="search-box" style="position: relative;">
-                        <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;">🔍</span>
-                        <input type="text" id="searchUser" placeholder="Buscar usuario..." onkeyup="filtrarUsuarios()" 
-                            style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
                     </div>
-                    <button class="btn-primary" onclick="abrirModalUsuarioCrear()"
-                        style="width: auto; margin: 0; padding: 0.6rem 1.25rem;">+ Nuevo Usuario</button>
                 </div>
-            </header>
+            <?php elseif ($seccion === 'usuarios'): ?>
+                <header class="top-header">
+                    <h1>Panel de Usuarios</h1>
+                    <div class="header-actions" style="display: flex; gap: 1.5rem; align-items: center;">
+                        <div class="search-box" style="position: relative;">
+                            <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-light); font-size: 0.9rem;">🔍</span>
+                            <input type="text" id="searchUser" placeholder="Buscar usuario..." onkeyup="filtrarUsuarios()"
+                                style="padding: 0.65rem 1rem 0.65rem 2.5rem; border-radius: 9999px; border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.8); outline: none; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); color: var(--text-color); font-size: 0.95rem; width: 280px; transition: all 0.2s;">
+                        </div>
+                        <button class="btn-primary" onclick="abrirModalUsuarioCrear()"
+                            style="width: auto; margin: 0; padding: 0.6rem 1.25rem;">+ Nuevo Usuario</button>
+                    </div>
+                </header>
 
-            <div class="content-body">
-                <div class="table-container">
-                    <table class="data-table" id="users-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Usuario</th>
-                                <th>Nombre</th>
-                                <th>Correo</th>
-                                <th>Rol</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (!empty($usuarios)): ?>
-                                <?php foreach ($usuarios as $usr): ?>
-                                    <?php 
+                <div class="content-body">
+                    <div class="table-container">
+                        <table class="data-table" id="users-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Usuario</th>
+                                    <th>Nombre</th>
+                                    <th>Correo</th>
+                                    <th>Rol</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($usuarios)): ?>
+                                    <?php foreach ($usuarios as $usr): ?>
+                                        <?php
                                         $rol_class = "";
                                         if ($usr['rol'] == 'admin') $rol_class = "background: rgba(254, 226, 226, 0.8); color: #991b1b; border: 1px solid #fecaca;";
                                         if ($usr['rol'] == 'bibliotecario') $rol_class = "background: rgba(219, 234, 254, 0.8); color: #1e40af; border: 1px solid #bfdbfe;";
                                         if ($usr['rol'] == 'estudiante') $rol_class = "background: rgba(209, 250, 229, 0.8); color: #065f46; border: 1px solid #10b981;";
-                                        
+
                                         $is_activo = ($usr['estado'] == 1);
                                         $estado_texto = $is_activo ? 'Activo' : 'Inactivo';
                                         $estado_class = $is_activo ? "background: #d1fae5; color: #065f46;" : "background: #fee2e2; color: #991b1b;";
-                                    ?>
+                                        ?>
+                                        <tr>
+                                            <td><?= htmlspecialchars($usr['id']) ?></td>
+                                            <td><strong><?= htmlspecialchars($usr['usuario']) ?></strong></td>
+                                            <td><?= htmlspecialchars($usr['nombre']) ?></td>
+                                            <td><?= htmlspecialchars($usr['correo']) ?></td>
+                                            <td><span class="status-badge" style="<?= $rol_class ?>"><?= ucfirst(htmlspecialchars($usr['rol'])) ?></span></td>
+                                            <td><span class="status-badge" style="<?= $estado_class ?>"><?= $estado_texto ?></span></td>
+                                            <td>
+                                                <button class="btn-icon" title="Editar" onclick='abrirModalUsuarioEditar(<?= htmlspecialchars(json_encode($usr), ENT_QUOTES, "UTF-8") ?>)'>✏️</button>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
                                     <tr>
-                                        <td><?= htmlspecialchars($usr['id']) ?></td>
-                                        <td><strong><?= htmlspecialchars($usr['usuario']) ?></strong></td>
-                                        <td><?= htmlspecialchars($usr['nombre']) ?></td>
-                                        <td><?= htmlspecialchars($usr['correo']) ?></td>
-                                        <td><span class="status-badge" style="<?= $rol_class ?>"><?= ucfirst(htmlspecialchars($usr['rol'])) ?></span></td>
-                                        <td><span class="status-badge" style="<?= $estado_class ?>"><?= $estado_texto ?></span></td>
-                                        <td>
-                                            <button class="btn-icon" title="Editar" onclick='abrirModalUsuarioEditar(<?= htmlspecialchars(json_encode($usr), ENT_QUOTES, "UTF-8") ?>)'>✏️</button>
+                                        <td colspan="7" style="text-align: center; color: var(--text-light); padding: 3rem;">👥 No hay usuarios registrados.</td>
+                                    </tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            <?php elseif ($seccion === 'prestamos'): ?>
+                <header class="top-header">
+                    <h1>Préstamos</h1>
+                </header>
+
+                <div class="content-body">
+                    <!-- Mensajes -->
+                    <?php if (isset($_GET['msg'])): ?>
+                        <div style="background: rgba(16,185,129,0.1); border: 1px solid #10b981; color: #065f46; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; font-weight: 600;">
+                            ✅ <?= htmlspecialchars($_GET['msg']) ?>
+                        </div>
+                    <?php endif; ?>
+                    <?php if (isset($_GET['error'])): ?>
+                        <div style="background: rgba(239,68,68,0.1); border: 1px solid #ef4444; color: #991b1b; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem; font-weight: 600;">
+                            ⚠️ <?= htmlspecialchars($_GET['error']) ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- Tarjetas resumen -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                        <div style="background: rgba(255,255,255,0.85); border-radius: 1rem; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.6);">
+                            <span style="font-size: 0.85rem; color: var(--text-light); font-weight: 600; text-transform: uppercase;">Total Préstamos Activos</span>
+                            <div style="font-size: 2.5rem; font-weight: 800; color: var(--primary); margin-top: 0.5rem;"><?= $total_activos ?></div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.85); border-radius: 1rem; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.6);">
+                            <span style="font-size: 0.85rem; color: var(--text-light); font-weight: 600; text-transform: uppercase;">Préstamos Atrasados</span>
+                            <div style="font-size: 2.5rem; font-weight: 800; color: #ef4444; margin-top: 0.5rem;"><?= $total_atrasados ?></div>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de préstamos -->
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Título del Libro</th>
+                                    <th>Alumno</th>
+                                    <th>Fecha de Préstamo</th>
+                                    <th>Fecha Límite</th>
+                                    <th>Estado</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if (!empty($prestamos)): ?>
+                                    <?php foreach ($prestamos as $p): ?>
+                                        <?php
+                                        $dias = (strtotime($p['fecha_devolucion']) - strtotime(date('Y-m-d'))) / 86400;
+                                        $es_activo = $p['estado'] === 'activo';
+                                        $es_atrasado = $es_activo && $dias < 0;
+
+                                        if (!$es_activo) {
+                                            $badge = "background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;";
+                                            $badge_txt = "Devuelto";
+                                        } elseif ($es_atrasado) {
+                                            $badge = "background: rgba(239,68,68,0.1); color: #991b1b; border: 1px solid #fecaca;";
+                                            $badge_txt = "Atrasado";
+                                        } else {
+                                            $badge = "background: rgba(16,185,129,0.1); color: #065f46; border: 1px solid #10b981;";
+                                            $badge_txt = "Activo";
+                                        }
+                                        ?>
+                                        <tr>
+                                            <td><strong><?= htmlspecialchars($p['titulo']) ?></strong></td>
+                                            <td><?= htmlspecialchars($p['nombre_estudiante']) ?></td>
+                                            <td><?= date('d M, Y', strtotime($p['fecha_prestamo'])) ?></td>
+                                            <td><?= date('d M, Y', strtotime($p['fecha_devolucion'])) ?></td>
+                                            <td><span class="status-badge" style="<?= $badge ?>"><?= $badge_txt ?></span></td>
+                                            <td>
+                                                <?php if ($es_activo): ?>
+                                                    <form method="POST" action="procesar_devolucion_admin.php" style="display:inline;">
+                                                        <input type="hidden" name="id_prestamo" value="<?= $p['id'] ?>">
+                                                        <button type="submit" class="btn-icon" title="Registrar devolución">✅</button>
+                                                    </form>
+                                                <?php else: ?>
+                                                    <span style="color: var(--text-light); font-size: 0.85rem;">—</span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <tr>
+                                        <td colspan="6" style="text-align: center; color: var(--text-light); padding: 3rem;">
+                                            🔄 No hay préstamos registrados.
                                         </td>
                                     </tr>
-                                <?php endforeach; ?>
-                            <?php else: ?>
-                                <tr>
-                                    <td colspan="7" style="text-align: center; color: var(--text-light); padding: 3rem;">👥 No hay usuarios registrados.</td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-<?php endif; ?>
+            <?php endif; ?>
         </main>
     </div>
 
@@ -364,7 +489,7 @@ if ($seccion === 'inventario') {
                 <div class="modal-body">
                     <input type="hidden" name="accion" id="usr_accion" value="crear">
                     <input type="hidden" name="id" id="usr_id" value="">
-                    
+
                     <div class="form-grid">
                         <div class="form-group">
                             <label>Nombre de Usuario</label>
@@ -500,18 +625,18 @@ if ($seccion === 'inventario') {
         }
 
         // --- FUNCIONES DEL MÓDULO DE USUARIOS ---
-        
+
         function abrirModalUsuarioCrear() {
             document.getElementById('usr_modal_title').textContent = 'Registrar Nuevo Usuario';
             document.getElementById('usr_accion').value = 'crear';
             document.getElementById('usr_id').value = '';
-            
+
             document.getElementById('usr_usuario').value = '';
             document.getElementById('usr_nombre').value = '';
             document.getElementById('usr_correo').value = '';
             document.getElementById('usr_rol').value = 'estudiante';
             document.getElementById('usr_estado').value = '1';
-            
+
             // Mostrar y requerir clave para nuevo usuario
             document.getElementById('usr_clave_container').style.display = 'block';
             document.getElementById('usr_clave').required = true;
@@ -524,13 +649,13 @@ if ($seccion === 'inventario') {
             document.getElementById('usr_modal_title').textContent = 'Editar Usuario';
             document.getElementById('usr_accion').value = 'editar';
             document.getElementById('usr_id').value = usr.id;
-            
+
             document.getElementById('usr_usuario').value = usr.usuario;
             document.getElementById('usr_nombre').value = usr.nombre;
             document.getElementById('usr_correo').value = usr.correo;
             document.getElementById('usr_rol').value = usr.rol;
             document.getElementById('usr_estado').value = usr.estado;
-            
+
             // Ocultar campo de contraseña (no se edita aquí)
             document.getElementById('usr_clave_container').style.display = 'none';
             document.getElementById('usr_clave').required = false;
@@ -551,7 +676,7 @@ if ($seccion === 'inventario') {
 
             for (let i = 0; i < tr.length; i++) {
                 if (tr[i].getElementsByTagName("td").length === 1) continue;
-                
+
                 // Buscar en Nombre Real o Usuario (Columnas 1 y 2 indexadas form HTML)
                 let td1 = tr[i].getElementsByTagName("td")[1]; // Usuario
                 let td2 = tr[i].getElementsByTagName("td")[2]; // Nombre Real
@@ -563,7 +688,7 @@ if ($seccion === 'inventario') {
                     } else {
                         tr[i].style.display = "none";
                     }
-                }       
+                }
             }
         }
     </script>
